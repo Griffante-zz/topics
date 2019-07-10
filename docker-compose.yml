@@ -1,0 +1,63 @@
+version: '3'
+services:
+    db:
+        image: postgres:10.1
+        restart: always
+        environment:
+        - POSTGRES_DB=${DB_DATABASE}
+        - POSTGRES_USER=${DB_USERNAME}
+        - POSTGRES_PASSWORD=${DB_PASSWORD}
+        ports:
+        - 5432:5432
+        volumes:
+        - postgres:/var/lib/postgresql
+        - data:/var/lib/postgresql/data
+    es:
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.2.0
+        container_name: es
+        environment:
+        - node.name=elasticsearch
+        - cluster.name=docker-cluster
+        - cluster.initial_master_nodes=elasticsearch
+        - "ES_JAVA_OPTS=-Xms256M -Xmx256M"
+        - "MAX_MAP_COUNT=262144"
+        - "http.cors.allow-origin=http://topics.local"
+        - "http.cors.enabled=true"
+        - "http.cors.allow-headers=X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization,Access-Control-Allow-Headers,Accept,access-control-allow-origin,x-csrf-token,x-requested-with"
+        - "http.cors.allow-credentials=true"
+        - "http.cors.allow-methods=GET,OPTIONS"
+        volumes:
+        - es:/usr/share/elasticsearch/data
+        ports:
+        - 9200:9200
+    redis:
+        image: redis:3.2-alpine
+        volumes:
+            - "redis:/data"
+    web:
+        build: ./docker
+        depends_on:
+            - db
+            - es
+            - redis
+        environment:
+            - DEV_UID=1000
+            - NGINX_UID=127
+            - NGINX_GID=1000
+        extra_hosts:
+            - "host-container:172.17.0.1"
+        links:
+            - db:db.topics.local
+            - es:es.topics.local
+            - redis:redis.topics.local
+        ports:
+            - "80:80"
+        volumes:
+            - ".:/var/www/html"
+            - "./docker/config/nginx/default.conf:/etc/nginx/sites-available/default.conf"
+volumes:
+    postgres:
+    data:
+    es:
+        driver: local
+    redis:
